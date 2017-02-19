@@ -35,6 +35,7 @@
 
 #include <iostream>
 #include <fstream>
+#include "geometry_msgs/Twist.h"
 
 #define PI 3.14159265258979
 
@@ -47,8 +48,17 @@ const char TO[] = "left_camera";
 
 using namespace std;
 
+
 namespace ORB_SLAM
 {
+/*
+void Tracking::odomCallback(const nav_msgs::Odometry::ConstPtr &msg)
+{
+    ROS_INFO("Seq: [%d]", msg->header.seq);
+    ROS_INFO("Position-> x: [%f], y: [%f], z: [%f]", msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z);
+    ROS_INFO("Orientation-> x: [%f], y: [%f], z: [%f], w: [%f]", msg->pose.pose.orientation.x, msg->pose.pose.orientation.y, msg->pose.pose.orientation.z, msg->pose.pose.orientation.w);
+    ROS_INFO("Vel-> Linear: [%f], Angular: [%f]", msg->twist.twist.linear.x, msg->twist.twist.angular.z);
+}*/
 
 Tracking::Tracking(ORBVocabulary *pVoc, FramePublisher *pFramePublisher, MapPublisher *pMapPublisher, Map *pMap, string strSettingPath) : mState(NO_IMAGES_YET), mpORBVocabulary(pVoc), mpFramePublisher(pFramePublisher), mpMapPublisher(pMapPublisher), mpMap(pMap),
                                                                                                                                           mnLastRelocFrameId(0), mbPublisherStopped(false), mbReseting(false), mbForceRelocalisation(false), mbMotionModel(false)
@@ -162,6 +172,8 @@ Tracking::Tracking(ORBVocabulary *pVoc, FramePublisher *pFramePublisher, MapPubl
     }
 }
 
+
+
 void Tracking::SetLocalMapper(LocalMapping *pLocalMapper)
 {
     mpLocalMapper = pLocalMapper;
@@ -181,7 +193,7 @@ void Tracking::Run()
 {
     ros::NodeHandle nodeHandler;
     ros::Subscriber sub = nodeHandler.subscribe("/stereo/left/image_raw", 1, &Tracking::GrabImage, this);
-
+    //ros::Subscriber odom_sub = nodeHandler.subscribe("odom", 1, &Tracking::odomCallback, this);
     ros::spin();
 }
 
@@ -291,7 +303,7 @@ void Tracking::GrabImage(const sensor_msgs::ImageConstPtr &msg)
         mCurrentFrame.mTranspose.at<float>(1) = transpose.x();
         mCurrentFrame.mTranspose.at<float>(2) = 0;
         mCurrentFrame.mYaw = yaw;
-        printf("tf_->x:%5.3f y:%5.3f z:%5.3f yaw:%5.3f\n", -transpose.y(), transpose.x(), transpose.z(), yaw);
+        //printf("tf_->x:%5.3f y:%5.3f z:%5.3f yaw:%5.3f\n", mCurrentFrame.mTranspose.at<float>(0), mCurrentFrame.mTranspose.at<float>(1), mCurrentFrame.mTranspose.at<float>(2), yaw);
     }
     catch (tf::TransformException ex)
     {
@@ -414,15 +426,31 @@ void Tracking::GrabImage(const sensor_msgs::ImageConstPtr &msg)
                 {
                     yaw_cl -= 2 * PI;
                 }
-
                 cv::Mat R_cl = computeMatrixFromAngles(0, 0, yaw_cl);
                 cv::Mat R_cw = computeMatrixFromAngles(0, 0, -mCurrentFrame.mYaw);
-                cv::Mat t_cl = -R_cw * (mCurrentFrame.mTranspose - mLastFrame.mTranspose);
-
+                cv::Mat t_cl = R_cw * (mLastFrame.mTranspose - mCurrentFrame.mTranspose);
 
                 mVelocity = cv::Mat::eye(4, 4, CV_32F);
                 R_cl.copyTo(mVelocity.rowRange(0, 3).colRange(0, 3));
                 t_cl.copyTo(mVelocity.rowRange(0, 3).col(3));
+                
+                cv::Mat tpre = mVelocity * mCurrentFrame.mTcw;
+                cv::Mat tRwc = tpre.rowRange(0, 3).colRange(0, 3).t();
+                cv::Mat ttwc = -tRwc * tpre.rowRange(0, 3).col(3);
+
+/*
+                cout<<"============================================"<<endl;
+                cout<<"mCurrentFrame.mTranspose"<<mCurrentFrame.mTranspose<<endl;
+                cout<<"t_cl:"<<t_cl<<endl;
+                cout<<"pre :"<<ttwc<<endl;
+                cout<<"--------------------------------"<<endl;
+                cout<<"mCurrentFrame.mYaw"<<mCurrentFrame.mYaw<<endl;
+                cout<<"yaw_cl"<<yaw_cl<<endl;
+                cout<<"mVelocity="<<mVelocity<<endl;
+                cout<<"mCurrentFrame.mTcw="<<mCurrentFrame.mTcw<<endl;
+                */
+                
+
             }
             else
                 mVelocity = cv::Mat();
@@ -452,10 +480,12 @@ void Tracking::GrabImage(const sensor_msgs::ImageConstPtr &msg)
 
         computeAnglesFromMatrix(Rwc, roll, pitch, yaw);
 
-        printf("orb->x:%5.3f y:%5.3f z:%5.3f yaw:%5.3f\n",twc.at<float>(0), twc.at<float>(1), twc.at<float>(2), yaw);
+        //printf("orb->x:%5.3f y:%5.3f z:%5.3f yaw:%5.3f\n",twc.at<float>(0), twc.at<float>(1), twc.at<float>(2), yaw);
+
+        
         
     }
-    mpLocalMapper->Run();
+    //mpLocalMapper->Run();
 }
 
 void Tracking::FirstInitialization()
@@ -605,7 +635,7 @@ void Tracking::Initialize()
     //mInitialFrame,mCurrentFrame
     //   SearchForInitialization(Frame &F1, Frame &F2, vector<cv::Point2f> &vbPrevMatched, vector<int> &vnMatches12, int windowSize)
     double base_line = cv::norm(tcw2);
-    printf("%f\n",base_line);
+    //printf("%f\n",base_line);
     //printf("tfi->x:%5.3f y:%5.3f z:%5.3f yaw:%5.3f\n",-transpose.y(), transpose.x(), transpose.z(), mCurrentFrame.mYaw);
     if (base_line > 0.1)
     {
@@ -676,6 +706,7 @@ void Tracking::Initialize()
     /*cv::Mat Rcw; // Current Camera Rotation
     cv::Mat tcw; // Current Camera Translation
     vector<bool> vbTriangulated; // Triangulated Correspondences (mvIniMatches)
+    
 
     if(mpInitializer->Initialize(mCurrentFrame, mvIniMatches, Rcw, tcw, mvIniP3D, vbTriangulated))
     {
@@ -878,6 +909,7 @@ bool Tracking::TrackWithMotionModel()
     cout<<"Last mTcw"<<mLastFrame.mTcw<<endl;
     cout<<"pre mTcw"<<mCurrentFrame.mTcw<<endl;
     */
+    
 
 
     fill(mCurrentFrame.mvpMapPoints.begin(), mCurrentFrame.mvpMapPoints.end(), static_cast<MapPoint *>(NULL));
@@ -932,10 +964,10 @@ bool Tracking::TrackLocalMap()
 
     // Decide if the tracking was succesful
     // More restrictive if there was a relocalization recently
-    if (mCurrentFrame.mnId < mnLastRelocFrameId + mMaxFrames && mnMatchesInliers < 50)
+    if (mCurrentFrame.mnId < mnLastRelocFrameId + mMaxFrames && mnMatchesInliers < 20)//mod_by_liu 50 -> 20
         return false;
 
-    if (mnMatchesInliers < 30)
+    if (mnMatchesInliers < 20)//mod_by_liu 30 -> 20
         return false;
     else
         return true;
@@ -958,13 +990,14 @@ bool Tracking::NeedNewKeyFrame()
     bool bLocalMappingIdle = mpLocalMapper->AcceptKeyFrames();
 
     // Condition 1a: More than "MaxFrames" have passed from last keyframe insertion
-    const bool c1a = mCurrentFrame.mnId >= mnLastKeyFrameId + mMaxFrames;
+    //const bool c1a = mCurrentFrame.mnId >= mnLastKeyFrameId + mMaxFrames;
     // Condition 1b: More than "MinFrames" have passed and Local Mapping is idle
-    const bool c1b = mCurrentFrame.mnId >= mnLastKeyFrameId + mMinFrames && bLocalMappingIdle;
+    //const bool c1b = mCurrentFrame.mnId >= mnLastKeyFrameId + mMinFrames && bLocalMappingIdle;
     // Condition 2: Less than 90% of points than reference keyframe and enough inliers
-    const bool c2 = mnMatchesInliers < nRefMatches * 0.9 && mnMatchesInliers > 15;
+    const bool c2 = mnMatchesInliers < nRefMatches * 0.6 && mnMatchesInliers > 15; // mod_by_liu 0.9 -> 0.6
 
-    if ((c1a || c1b) && c2)
+    //if ((c1a || c1b) && c2)// mod_by_liu 0
+    if ( c2)
     {
         // If the mapping accepts keyframes insert, otherwise send a signal to interrupt BA, but not insert yet
         if (bLocalMappingIdle)

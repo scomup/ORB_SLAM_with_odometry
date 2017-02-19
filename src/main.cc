@@ -126,11 +126,11 @@ int main(int argc, char **argv)
 
     //Initialize the Local Mapping Thread and launch
     ORB_SLAM::LocalMapping LocalMapper(&World);
-   // boost::thread localMappingThread(&ORB_SLAM::LocalMapping::Run,&LocalMapper);
+    boost::thread localMappingThread(&ORB_SLAM::LocalMapping::Run,&LocalMapper);
 
     //Initialize the Loop Closing Thread and launch
     ORB_SLAM::LoopClosing LoopCloser(&World, &Database, &Vocabulary);
-    //boost::thread loopClosingThread(&ORB_SLAM::LoopClosing::Run, &LoopCloser);
+    boost::thread loopClosingThread(&ORB_SLAM::LoopClosing::Run, &LoopCloser);
 
     //Set pointers between threads
     Tracker.SetLocalMapper(&LocalMapper);

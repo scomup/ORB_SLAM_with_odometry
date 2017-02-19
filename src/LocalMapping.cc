@@ -46,9 +46,9 @@ void LocalMapping::SetTracker(Tracking *pTracker)
 void LocalMapping::Run()
 {
 
-    //ros::Rate r(500);
-    //while(1)
-    //{
+    ros::Rate r(500);
+    while(1)
+   {
         // Check if there are keyframes in the queue
         if(CheckNewKeyFrames())
         {            
@@ -88,7 +88,7 @@ void LocalMapping::Run()
         }
 
         // Safe area to stop
-        /*
+        
         if(stopRequested())
         {
             Stop();
@@ -102,8 +102,8 @@ void LocalMapping::Run()
         }
 
         ResetIfRequested();
-        r.sleep();*/
-    //}
+        r.sleep();
+    }
 }
 
 void LocalMapping::InsertKeyFrame(KeyFrame *pKF)

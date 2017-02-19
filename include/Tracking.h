@@ -40,7 +40,8 @@
 #include<tf/transform_broadcaster.h>
 #include <tf/transform_listener.h>
 #include "tf/transform_datatypes.h"
-
+#include "geometry_msgs/Twist.h"
+//#include "nav_msgs/Odometry.h"
 namespace ORB_SLAM
 {
 
@@ -91,6 +92,8 @@ public:
 
 
 protected:
+    //void odomCallback(const nav_msgs::Odometry::ConstPtr &msg);
+
     void GrabImage(const sensor_msgs::ImageConstPtr& msg);
 
     void FirstInitialization();
@@ -114,6 +117,7 @@ protected:
 
     bool NeedNewKeyFrame();
     void CreateNewKeyFrame();
+    //void velCallback(geometry_msgs::Twist::ConstPtr& vel);
 
     tf::TransformListener mListener;
 
