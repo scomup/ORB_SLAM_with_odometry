@@ -9,7 +9,8 @@
    </node>
  	<node pkg="ORB_SLAM" type="ORB_SLAM" name="ORB_SLAM"  args="Data/ORBvoc.txt Data/gazebo.yaml" cwd="node" output="screen">
    </node>
-   <node pkg="tf" type="static_transform_publisher" name="odom_map_broadcaster" args="0.175 0.05 0.175 0 0 0 1 base_footprint left_camera 100" />
+   <node pkg="tf" type="static_transform_publisher" name="odom_map_broadcaster1" args="0.175 0.05 0.175 0 0 0 1 myRobot/base_link myRobot/left_camera 100" />
+  <node pkg="tf" type="static_transform_publisher" name="odom_map_broadcaster2" args="0.05 -0.175 0 0 0 0 1 ORB_SLAM/Camera ORB_SLAM/Robot 100" />
 
 </launch>
 

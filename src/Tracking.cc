@@ -42,8 +42,8 @@
 //const char FROM[] = "Rulo/odom";
 //const char TO[] = "Rulo/left_camera";
 
-const char FROM[] = "odom";
-const char TO[] = "left_camera";
+const char FROM[] = "myRobot/odom";
+const char TO[] = "myRobot/left_camera";
 
 
 using namespace std;
@@ -64,7 +64,7 @@ Tracking::Tracking(ORBVocabulary *pVoc, FramePublisher *pFramePublisher, MapPubl
                                                                                                                                           mnLastRelocFrameId(0), mbPublisherStopped(false), mbReseting(false), mbForceRelocalisation(false), mbMotionModel(false)
 {
     // Load camera parameters from settings file
-
+    ofs.open("/home/liu/odom_with_odom_res.txt", std::ofstream::out);
     cv::FileStorage fSettings(strSettingPath, cv::FileStorage::READ);
     float fx = fSettings["Camera.fx"];
     float fy = fSettings["Camera.fy"];
@@ -161,10 +161,7 @@ Tracking::Tracking(ORBVocabulary *pVoc, FramePublisher *pFramePublisher, MapPubl
 
     try
     {
-        //"/odomx", "/base_footprintx"
-        //"Rulo/odom", "Rulo/base_link"
-        mListener.waitForTransform(FROM, TO,
-                                   ros::Time(0), ros::Duration(3.0));
+        mListener.waitForTransform(FROM, TO, ros::Time(0), ros::Duration(3.0));
     }
     catch (tf::TransformException ex)
     {
@@ -303,6 +300,8 @@ void Tracking::GrabImage(const sensor_msgs::ImageConstPtr &msg)
         mCurrentFrame.mTranspose.at<float>(1) = transpose.x();
         mCurrentFrame.mTranspose.at<float>(2) = 0;
         mCurrentFrame.mYaw = yaw;
+        
+        //msg->header.stamp.toSec();
         //printf("tf_->x:%5.3f y:%5.3f z:%5.3f yaw:%5.3f\n", mCurrentFrame.mTranspose.at<float>(0), mCurrentFrame.mTranspose.at<float>(1), mCurrentFrame.mTranspose.at<float>(2), yaw);
     }
     catch (tf::TransformException ex)
@@ -433,12 +432,20 @@ void Tracking::GrabImage(const sensor_msgs::ImageConstPtr &msg)
                 mVelocity = cv::Mat::eye(4, 4, CV_32F);
                 R_cl.copyTo(mVelocity.rowRange(0, 3).colRange(0, 3));
                 t_cl.copyTo(mVelocity.rowRange(0, 3).col(3));
-                
+
                 cv::Mat tpre = mVelocity * mCurrentFrame.mTcw;
                 cv::Mat tRwc = tpre.rowRange(0, 3).colRange(0, 3).t();
                 cv::Mat ttwc = -tRwc * tpre.rowRange(0, 3).col(3);
 
-/*
+
+                cv::Mat Rwc = mCurrentFrame.mTcw.rowRange(0, 3).colRange(0, 3).t();
+                cv::Mat twc = -Rwc * mCurrentFrame.mTcw.rowRange(0, 3).col(3);
+
+                float secs = msg->header.stamp.toSec();
+                //cout << secs << "," << twc.at<float>(0) << "," << twc.at<float>(1) << endl;
+                //ofs << secs << "," << twc.at<float>(0) << "," << twc.at<float>(1) << endl;
+
+                /*
                 cout<<"============================================"<<endl;
                 cout<<"mCurrentFrame.mTranspose"<<mCurrentFrame.mTranspose<<endl;
                 cout<<"t_cl:"<<t_cl<<endl;
