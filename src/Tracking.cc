@@ -929,15 +929,17 @@ bool Tracking::TrackWithMotionModel()
 
     float dx, dy;
     float dt = mCur_stamp - mPre_stamp;
+    float r = sqrt(0.175*0.175 + 0.05*0.05);
+    mVc = mV + mYawRate * r;
     if (mYawRate < 0.0001)
     {
-        dx = mV * dt * cos(yaw);
-        dy = mV * dt * sin(yaw);
+        dx = mVc * dt * cos(yaw);
+        dy = mVc * dt * sin(yaw);
     }
     else
     {
-        dx = (mV / mYawRate) * (sin(mYawRate * dt + yaw) - sin(yaw));
-        dy = (mV / mYawRate) * (-cos(mYawRate * dt + yaw) + cos(yaw));
+        dx = (mVc / mYawRate) * (sin(mYawRate * dt + yaw) - sin(yaw));
+        dy = (mVc / mYawRate) * (-cos(mYawRate * dt + yaw) + cos(yaw));
     }
     //cout<<"dx:"<<dx<<endl;
     //cout<<"dy:"<<dy<<endl;
