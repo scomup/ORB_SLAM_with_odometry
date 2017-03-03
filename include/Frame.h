@@ -46,7 +46,8 @@ public:
     Frame();
     Frame(const Frame &frame);
     Frame(cv::Mat &im, const double &timeStamp, ORBextractor* extractor, ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef);
-
+    
+    //mode_by_liu
     float mYaw;
     cv::Mat mTranspose;
     

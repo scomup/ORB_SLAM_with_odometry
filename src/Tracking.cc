@@ -44,21 +44,22 @@
 
 const char FROM[] = "myRobot/odom";
 const char TO[] = "myRobot/left_camera";
-
+const char CMD[] = "myRobot/cmd_vel";
 
 using namespace std;
 
 
 namespace ORB_SLAM
 {
-/*
-void Tracking::odomCallback(const nav_msgs::Odometry::ConstPtr &msg)
+
+void Tracking::cmdCallback(const geometry_msgs::Twist& vel_cmd)
 {
-    ROS_INFO("Seq: [%d]", msg->header.seq);
-    ROS_INFO("Position-> x: [%f], y: [%f], z: [%f]", msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z);
-    ROS_INFO("Orientation-> x: [%f], y: [%f], z: [%f], w: [%f]", msg->pose.pose.orientation.x, msg->pose.pose.orientation.y, msg->pose.pose.orientation.z, msg->pose.pose.orientation.w);
-    ROS_INFO("Vel-> Linear: [%f], Angular: [%f]", msg->twist.twist.linear.x, msg->twist.twist.angular.z);
-}*/
+//ROS_INFO("I heard: [%s]", vel_cmd.linear.y);
+    cout << "Twist Received " << endl;
+    mV = vel_cmd.linear.x;
+    mYawRate = vel_cmd.angular.z;
+
+}
 
 Tracking::Tracking(ORBVocabulary *pVoc, FramePublisher *pFramePublisher, MapPublisher *pMapPublisher, Map *pMap, string strSettingPath) : mState(NO_IMAGES_YET), mpORBVocabulary(pVoc), mpFramePublisher(pFramePublisher), mpMapPublisher(pMapPublisher), mpMap(pMap),
                                                                                                                                           mnLastRelocFrameId(0), mbPublisherStopped(false), mbReseting(false), mbForceRelocalisation(false), mbMotionModel(false)
@@ -159,6 +160,8 @@ Tracking::Tracking(ORBVocabulary *pVoc, FramePublisher *pFramePublisher, MapPubl
 
     mTfBr.sendTransform(tf::StampedTransform(tfT, ros::Time::now(), "/ORB_SLAM/World", "/ORB_SLAM/Camera"));
 
+    mV = 0;
+    mYawRate = 0;
     try
     {
         mListener.waitForTransform(FROM, TO, ros::Time(0), ros::Duration(3.0));
@@ -190,7 +193,7 @@ void Tracking::Run()
 {
     ros::NodeHandle nodeHandler;
     ros::Subscriber sub = nodeHandler.subscribe("/stereo/left/image_raw", 1, &Tracking::GrabImage, this);
-    //ros::Subscriber odom_sub = nodeHandler.subscribe("odom", 1, &Tracking::odomCallback, this);
+    ros::Subscriber odom_sub = nodeHandler.subscribe(CMD, 1, &Tracking::cmdCallback, this);
     ros::spin();
 }
 
@@ -246,6 +249,10 @@ void Tracking::GrabImage(const sensor_msgs::ImageConstPtr &msg)
 
     cv::Mat im;
 
+    mPre_stamp = mCur_stamp;
+    mCur_stamp = msg->header.stamp.toSec();
+
+
     // Copy the ros image message to cv::Mat. Convert to grayscale if it is a color image.
     cv_bridge::CvImageConstPtr cv_ptr;
     try
@@ -277,37 +284,39 @@ void Tracking::GrabImage(const sensor_msgs::ImageConstPtr &msg)
     else
         mCurrentFrame = Frame(im, cv_ptr->header.stamp.toSec(), mpIniORBextractor, mpORBVocabulary, mK, mDistCoef);
 
-    tf::StampedTransform transform;
-    tf::Vector3 transpose;
-    tf::Quaternion q;
-
-    try
+    if (mState != WORKING)
     {
-        //"odomx", "base_footprintx"
-        //
-        mListener.lookupTransform(FROM, TO, ros::Time(0), transform);
-        transpose = transform.getOrigin();
-        q = transform.getRotation();
+        try
+        {
+            tf::StampedTransform transform;
+            tf::Vector3 transpose;
+            tf::Quaternion q;
+            //"odomx", "base_footprintx"
+            //
+            mListener.lookupTransform(FROM, TO, ros::Time(0), transform);
+            transpose = transform.getOrigin();
+            q = transform.getRotation();
 
-        // yaw (z-axis rotation)
-        double ysqr = q.y() * q.y();
-        double t3 = +2.0 * (q.w() * q.z() + q.x() * q.y());
-        double t4 = +1.0 - 2.0 * (ysqr + q.z() * q.z());
-        double yaw = std::atan2(t3, t4);
-        mCurrentFrame.mYaw = yaw;
-        mCurrentFrame.mTranspose = cv::Mat::zeros(3, 1, CV_32F);
-        mCurrentFrame.mTranspose.at<float>(0) = -transpose.y();
-        mCurrentFrame.mTranspose.at<float>(1) = transpose.x();
-        mCurrentFrame.mTranspose.at<float>(2) = 0;
-        mCurrentFrame.mYaw = yaw;
-        
-        //msg->header.stamp.toSec();
-        //printf("tf_->x:%5.3f y:%5.3f z:%5.3f yaw:%5.3f\n", mCurrentFrame.mTranspose.at<float>(0), mCurrentFrame.mTranspose.at<float>(1), mCurrentFrame.mTranspose.at<float>(2), yaw);
-    }
-    catch (tf::TransformException ex)
-    {
-        ROS_ERROR("%s", ex.what());
-        ros::Duration(1.0).sleep();
+            // yaw (z-axis rotation)
+            double ysqr = q.y() * q.y();
+            double t3 = +2.0 * (q.w() * q.z() + q.x() * q.y());
+            double t4 = +1.0 - 2.0 * (ysqr + q.z() * q.z());
+            double yaw = std::atan2(t3, t4);
+            mCurrentFrame.mYaw = yaw;
+            mCurrentFrame.mTranspose = cv::Mat::zeros(3, 1, CV_32F);
+            mCurrentFrame.mTranspose.at<float>(0) = -transpose.y();
+            mCurrentFrame.mTranspose.at<float>(1) = transpose.x();
+            mCurrentFrame.mTranspose.at<float>(2) = 0;
+            mCurrentFrame.mYaw = yaw;
+
+            //msg->header.stamp.toSec();
+            //printf("tf_->x:%5.3f y:%5.3f z:%5.3f yaw:%5.3f\n", mCurrentFrame.mTranspose.at<float>(0), mCurrentFrame.mTranspose.at<float>(1), mCurrentFrame.mTranspose.at<float>(2), yaw);
+        }
+        catch (tf::TransformException ex)
+        {
+            ROS_ERROR("%s", ex.what());
+            ros::Duration(1.0).sleep();
+        }
     }
 
     // Depending on the state of the Tracker we perform different tasks
@@ -397,6 +406,7 @@ void Tracking::GrabImage(const sensor_msgs::ImageConstPtr &msg)
         {
             if (mpMap->KeyFramesInMap() <= 5)
             {
+                ROS_WARN("Reset!");
                 Reset();
                 return;
             }
@@ -405,6 +415,11 @@ void Tracking::GrabImage(const sensor_msgs::ImageConstPtr &msg)
         // Update motion model
         if (mbMotionModel)
         {
+                cv::Mat Rwc = mCurrentFrame.mTcw.rowRange(0, 3).colRange(0, 3).t();
+                cv::Mat twc = -Rwc * mCurrentFrame.mTcw.rowRange(0, 3).col(3);
+                cout << "ORB:" << twc.at<float>(0) << "," << twc.at<float>(1) << endl;
+
+            /*
             if (bOK && !mLastFrame.mTcw.empty())
             {
                 cv::Mat LastRwc = mLastFrame.mTcw.rowRange(0, 3).colRange(0, 3).t();
@@ -413,7 +428,7 @@ void Tracking::GrabImage(const sensor_msgs::ImageConstPtr &msg)
                 LastRwc.copyTo(LastTwc.rowRange(0, 3).colRange(0, 3));
                 Lasttwc.copyTo(LastTwc.rowRange(0, 3).col(3));
 
-                //mVelocity = mCurrentFrame.mTcw * LastTwc;
+                mVelocity = mCurrentFrame.mTcw * LastTwc;
 
                 float yaw_cl = mLastFrame.mYaw - mCurrentFrame.mYaw;
 
@@ -441,11 +456,11 @@ void Tracking::GrabImage(const sensor_msgs::ImageConstPtr &msg)
                 cv::Mat Rwc = mCurrentFrame.mTcw.rowRange(0, 3).colRange(0, 3).t();
                 cv::Mat twc = -Rwc * mCurrentFrame.mTcw.rowRange(0, 3).col(3);
 
-                float secs = msg->header.stamp.toSec();
+                //float secs = msg->header.stamp.toSec();
                 //cout << secs << "," << twc.at<float>(0) << "," << twc.at<float>(1) << endl;
                 //ofs << secs << "," << twc.at<float>(0) << "," << twc.at<float>(1) << endl;
 
-                /*
+                
                 cout<<"============================================"<<endl;
                 cout<<"mCurrentFrame.mTranspose"<<mCurrentFrame.mTranspose<<endl;
                 cout<<"t_cl:"<<t_cl<<endl;
@@ -455,12 +470,12 @@ void Tracking::GrabImage(const sensor_msgs::ImageConstPtr &msg)
                 cout<<"yaw_cl"<<yaw_cl<<endl;
                 cout<<"mVelocity="<<mVelocity<<endl;
                 cout<<"mCurrentFrame.mTcw="<<mCurrentFrame.mTcw<<endl;
-                */
+                
                 
 
             }
             else
-                mVelocity = cv::Mat();
+                mVelocity = cv::Mat();*/
         }
 
         mLastFrame = Frame(mCurrentFrame);
@@ -903,12 +918,42 @@ bool Tracking::TrackPreviousFrame()
 
 bool Tracking::TrackWithMotionModel()
 {
+    static float x;
+    static float y;
     ORBmatcher matcher(0.9, true);
-    vector<MapPoint *> vpMapPointMatches;
 
+    cv::Mat Rwc = mLastFrame.mTcw.rowRange(0, 3).colRange(0, 3).t();
+    cv::Mat twc = -Rwc * mLastFrame.mTcw.rowRange(0, 3).col(3);
+    float roll, pitch, yaw;
+    computeAnglesFromMatrix(Rwc, roll, pitch, yaw);
+
+    float dx, dy;
+    float dt = mCur_stamp - mPre_stamp;
+    if (mYawRate < 0.0001)
+    {
+        dx = mV * dt * cos(yaw);
+        dy = mV * dt * sin(yaw);
+    }
+    else
+    {
+        dx = (mV / mYawRate) * (sin(mYawRate * dt + yaw) - sin(yaw));
+        dy = (mV / mYawRate) * (-cos(mYawRate * dt + yaw) + cos(yaw));
+    }
+    //cout<<"dx:"<<dx<<endl;
+    //cout<<"dy:"<<dy<<endl;
+    x = x + dx;
+    y = y + dy;
+
+    float tmp;
+    tmp = dx;
+    dx = -dy;
+    dy = tmp;
+
+    //cout<<"----------"<<endl;
+    cout << "odm:" << -y<< "," << x << endl;
     // Compute current pose by motion model
     
-    mCurrentFrame.mTcw = mVelocity * mLastFrame.mTcw;
+    mCurrentFrame.mTcw = mLastFrame.mTcw;
 
 /*
     cout<<"------------------------"<<endl;

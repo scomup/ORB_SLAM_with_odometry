@@ -41,7 +41,9 @@
 #include <tf/transform_listener.h>
 #include "tf/transform_datatypes.h"
 #include "geometry_msgs/Twist.h"
-//#include "nav_msgs/Odometry.h"
+#include "nav_msgs/Odometry.h"
+
+
 namespace ORB_SLAM
 {
 
@@ -92,7 +94,16 @@ public:
 
 
 protected:
-    //void odomCallback(const nav_msgs::Odometry::ConstPtr &msg);
+    std::ofstream ofs;
+
+    //mod_by_liu
+    double mPre_stamp ;
+    double mCur_stamp;
+
+    float mV;
+    float mYawRate;
+
+    void cmdCallback(const geometry_msgs::Twist& vel_cmd);
 
     void GrabImage(const sensor_msgs::ImageConstPtr& msg);
 
