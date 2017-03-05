@@ -43,6 +43,7 @@
 //const char TO[] = "Rulo/left_camera";
 
 const char FROM[] = "myRobot/odom";
+const char TOROBOT[] = "myRobot/base_link";
 const char TO[] = "myRobot/left_camera";
 const char CMD[] = "myRobot/cmd_vel";
 
@@ -315,7 +316,7 @@ void Tracking::GrabImage(const sensor_msgs::ImageConstPtr &msg)
         catch (tf::TransformException ex)
         {
             ROS_ERROR("%s", ex.what());
-            ros::Duration(1.0).sleep();
+            exit(1);
         }
     }
 
@@ -345,7 +346,6 @@ void Tracking::GrabImage(const sensor_msgs::ImageConstPtr &msg)
         if (mState == WORKING && !RelocalisationRequested())
         {
             /*
-            
             if (!mbMotionModel || mpMap->KeyFramesInMap() < 4 || mVelocity.empty() || mCurrentFrame.mnId < mnLastRelocFrameId + 2)
             {
                 bOK = TrackPreviousFrame();
@@ -413,13 +413,13 @@ void Tracking::GrabImage(const sensor_msgs::ImageConstPtr &msg)
         }
 
         // Update motion model
-        if (mbMotionModel)
+       /* if (mbMotionModel)
         {
                 cv::Mat Rwc = mCurrentFrame.mTcw.rowRange(0, 3).colRange(0, 3).t();
                 cv::Mat twc = -Rwc * mCurrentFrame.mTcw.rowRange(0, 3).col(3);
-                cout << "ORB:" << twc.at<float>(0) << "," << twc.at<float>(1) << endl;
+                //cout << "ORB:" << twc.at<float>(0) << "," << twc.at<float>(1) << endl;
 
-            /*
+            
             if (bOK && !mLastFrame.mTcw.empty())
             {
                 cv::Mat LastRwc = mLastFrame.mTcw.rowRange(0, 3).colRange(0, 3).t();
@@ -428,55 +428,12 @@ void Tracking::GrabImage(const sensor_msgs::ImageConstPtr &msg)
                 LastRwc.copyTo(LastTwc.rowRange(0, 3).colRange(0, 3));
                 Lasttwc.copyTo(LastTwc.rowRange(0, 3).col(3));
 
-                mVelocity = mCurrentFrame.mTcw * LastTwc;
-
-                float yaw_cl = mLastFrame.mYaw - mCurrentFrame.mYaw;
-
-                if (yaw_cl < -PI)
-                {
-                    yaw_cl += 2 * PI;
-                }
-                else if (yaw_cl > PI)
-                {
-                    yaw_cl -= 2 * PI;
-                }
-                cv::Mat R_cl = computeMatrixFromAngles(0, 0, yaw_cl);
-                cv::Mat R_cw = computeMatrixFromAngles(0, 0, -mCurrentFrame.mYaw);
-                cv::Mat t_cl = R_cw * (mLastFrame.mTranspose - mCurrentFrame.mTranspose);
-
-                mVelocity = cv::Mat::eye(4, 4, CV_32F);
-                R_cl.copyTo(mVelocity.rowRange(0, 3).colRange(0, 3));
-                t_cl.copyTo(mVelocity.rowRange(0, 3).col(3));
-
-                cv::Mat tpre = mVelocity * mCurrentFrame.mTcw;
-                cv::Mat tRwc = tpre.rowRange(0, 3).colRange(0, 3).t();
-                cv::Mat ttwc = -tRwc * tpre.rowRange(0, 3).col(3);
-
-
-                cv::Mat Rwc = mCurrentFrame.mTcw.rowRange(0, 3).colRange(0, 3).t();
-                cv::Mat twc = -Rwc * mCurrentFrame.mTcw.rowRange(0, 3).col(3);
-
-                //float secs = msg->header.stamp.toSec();
-                //cout << secs << "," << twc.at<float>(0) << "," << twc.at<float>(1) << endl;
-                //ofs << secs << "," << twc.at<float>(0) << "," << twc.at<float>(1) << endl;
-
-                
-                cout<<"============================================"<<endl;
-                cout<<"mCurrentFrame.mTranspose"<<mCurrentFrame.mTranspose<<endl;
-                cout<<"t_cl:"<<t_cl<<endl;
-                cout<<"pre :"<<ttwc<<endl;
-                cout<<"--------------------------------"<<endl;
-                cout<<"mCurrentFrame.mYaw"<<mCurrentFrame.mYaw<<endl;
-                cout<<"yaw_cl"<<yaw_cl<<endl;
-                cout<<"mVelocity="<<mVelocity<<endl;
-                cout<<"mCurrentFrame.mTcw="<<mCurrentFrame.mTcw<<endl;
-                
-                
+                mVelocity = mCurrentFrame.mTcw * LastTwc;     
 
             }
             else
-                mVelocity = cv::Mat();*/
-        }
+                mVelocity = cv::Mat();
+        }*/
 
         mLastFrame = Frame(mCurrentFrame);
     }
@@ -498,9 +455,9 @@ void Tracking::GrabImage(const sensor_msgs::ImageConstPtr &msg)
         mTfBr.sendTransform(tf::StampedTransform(tfTcw, ros::Time::now(), "ORB_SLAM/World", "ORB_SLAM/Camera"));
 
         
-        float roll,pitch, yaw;
+        //float roll,pitch, yaw;
 
-        computeAnglesFromMatrix(Rwc, roll, pitch, yaw);
+        //computeAnglesFromMatrix(Rwc, roll, pitch, yaw);
 
         //printf("orb->x:%5.3f y:%5.3f z:%5.3f yaw:%5.3f\n",twc.at<float>(0), twc.at<float>(1), twc.at<float>(2), yaw);
 
@@ -527,37 +484,6 @@ void Tracking::FirstInitialization()
         mpInitializer = new Initializer(mCurrentFrame, 1.0, 200);
 
         mState = INITIALIZING;
-
-        /*
-        tf::StampedTransform transform;
-        tf::Vector3 transpose;
-        tf::Quaternion q;
-        try
-        {
-            //"odomx", "base_footprintx"
-            //
-            mListener.lookupTransform(FROM, TO,
-                                      ros::Time(0), transform);
-            transpose = transform.getOrigin();
-            q = transform.getRotation();
-
-            // yaw (z-axis rotation)
-            double ysqr = q.y() * q.y();
-            double t3 = +2.0 * (q.w() * q.z() + q.x() * q.y());
-            double t4 = +1.0 - 2.0 * (ysqr + q.z() * q.z());
-            double yaw = std::atan2(t3, t4);
-
-            mInitialFrame.mTranspose = cv::Mat::zeros(3, 1, CV_32F);
-            mInitialFrame.mTranspose.at<float>(0) = -transpose.y();
-            mInitialFrame.mTranspose.at<float>(1) = transpose.x();
-            mInitialFrame.mTranspose.at<float>(2) = 0;
-            mInitialFrame.mYaw = yaw;
-        }
-        catch (tf::TransformException ex)
-        {
-            ROS_ERROR("%s", ex.what());
-        }
-        */
     }
 }
 
@@ -581,35 +507,6 @@ void Tracking::Initialize()
         mState = NOT_INITIALIZED;
         return;
     }
-    /*
-    tf::StampedTransform transform;
-    tf::Vector3 transpose;
-    tf::Quaternion q;
-    try
-    {
-        //"odomx", "base_footprintx"
-        //
-        mListener.lookupTransform(FROM, TO,
-                                  ros::Time(0), transform);
-        transpose = transform.getOrigin();
-        q = transform.getRotation();
-
-        // yaw (z-axis rotation)
-        double ysqr = q.y() * q.y();
-        double t3 = +2.0 * (q.w() * q.z() + q.x() * q.y());
-        double t4 = +1.0 - 2.0 * (ysqr + q.z() * q.z());
-        double yaw = std::atan2(t3, t4);
-        mCurrentFrame.mTranspose = cv::Mat::zeros(3, 1, CV_32F);
-        mCurrentFrame.mTranspose.at<float>(0) = -transpose.y();
-        mCurrentFrame.mTranspose.at<float>(1) = transpose.x();
-        mCurrentFrame.mTranspose.at<float>(2) = 0;
-        mCurrentFrame.mYaw = yaw;
-    }
-    catch (tf::TransformException ex)
-    {
-        ROS_ERROR("%s", ex.what());
-    }
-    */
 
     float yaw_ci = mInitialFrame.mYaw - mCurrentFrame.mYaw;
     //cv::Mat t_ci = mCurrentFrame.mTranspose - mInitialFrame.mTranspose;
@@ -715,8 +612,8 @@ void Tracking::Initialize()
             mvIniP3D[ikp] = cv::Point3f(x3Dt.at<float>(0),x3Dt.at<float>(1),x3Dt.at<float>(2));
             //printf("init point %5.3f %5.3f %5.3f\n",x3Dt.at<float>(0),x3Dt.at<float>(1),x3Dt.at<float>(2));
         }
-        cv::imwrite("left.png",mInitialFrame.im);
-        cv::imwrite("right.png",mCurrentFrame.im);
+        //cv::imwrite("left.png",mInitialFrame.im);
+        //cv::imwrite("right.png",mCurrentFrame.im);
         CreateInitialMap(Rcw1, tcw1);
         cout<<"My Initial OK!"<<endl;
     }
@@ -918,53 +815,47 @@ bool Tracking::TrackPreviousFrame()
 
 bool Tracking::TrackWithMotionModel()
 {
-    static float x;
-    static float y;
     ORBmatcher matcher(0.9, true);
+
 
     cv::Mat Rwc = mLastFrame.mTcw.rowRange(0, 3).colRange(0, 3).t();
     cv::Mat twc = -Rwc * mLastFrame.mTcw.rowRange(0, 3).col(3);
     float roll, pitch, yaw;
     computeAnglesFromMatrix(Rwc, roll, pitch, yaw);
-
     float dx, dy;
     float dt = mCur_stamp - mPre_stamp;
-    float r = sqrt(0.175*0.175 + 0.05*0.05);
-    mVc = mV + mYawRate * r;
-    if (mYawRate < 0.0001)
-    {
-        dx = mVc * dt * cos(yaw);
-        dy = mVc * dt * sin(yaw);
+    //if(dt > 0.3)
+    dt = 0.1;
+    cv::Mat camPose = (cv::Mat_<float>(3, 1) << -0.05, 0.175, 0);
+
+    if(mYawRate < 0.0001){
+        dx =  - mV * dt * sin(yaw);
+        dy =  + mV  * dt * cos(yaw);
     }
-    else
-    {
-        dx = (mVc / mYawRate) * (sin(mYawRate * dt + yaw) - sin(yaw));
-        dy = (mVc / mYawRate) * (-cos(mYawRate * dt + yaw) + cos(yaw));
+    else{
+        dx =  - (mV / mYawRate) * ( - cos(mYawRate * dt + yaw) + cos(yaw));
+        dy =  + (mV / mYawRate) * (sin(mYawRate * dt + yaw)  - sin(yaw));
     }
-    //cout<<"dx:"<<dx<<endl;
-    //cout<<"dy:"<<dy<<endl;
-    x = x + dx;
-    y = y + dy;
+        
+    cv::Mat Rwc_c = computeMatrixFromAngles(0, 0, mYawRate*dt+yaw); //next robot rotation (world coordinate)
+    cv::Mat rob_diff = (cv::Mat_<float>(3, 1) << dx, dy, 0);//The different of next robot pose and previous robot pose  (world coordinate)
+    cv::Mat twc_c = Rwc_c * camPose + rob_diff;//next camera center  (world coordinate)
+    cv::Mat Rwc_l = computeMatrixFromAngles(0, 0, yaw);//Previous robot rotation (world coordinate)
+    cv::Mat twc_l = Rwc_l * camPose;//Previous camera center (world coordinate)
+    cv::Mat res = twc_c - twc_l;//The different of next camera center and previous camera center (world coordinate)
 
-    float tmp;
-    tmp = dx;
-    dx = -dy;
-    dy = tmp;
+    cv::Mat Rcw_new = Rwc_c.t();
+    cv::Mat tcw_new = -Rcw_new * (res + twc);//Previous camera center  (camera coordinate)
 
-    //cout<<"----------"<<endl;
-    cout << "odm:" << -y<< "," << x << endl;
-    // Compute current pose by motion model
-    
-    mCurrentFrame.mTcw = mLastFrame.mTcw;
-
-/*
+    mCurrentFrame.mTcw = cv::Mat::eye(4, 4, CV_32F);
+    Rcw_new.copyTo(mCurrentFrame.mTcw.rowRange(0, 3).colRange(0, 3));
+    tcw_new.copyTo(mCurrentFrame.mTcw.rowRange(0, 3).col(3));
+    //mCurrentFrame.mTcw = mLastFrame.mTcw;
+    /*
     cout<<"------------------------"<<endl;
-    cout<<"vec:"<<mVelocity<<endl;
     cout<<"Last mTcw"<<mLastFrame.mTcw<<endl;
     cout<<"pre mTcw"<<mCurrentFrame.mTcw<<endl;
     */
-    
-
 
     fill(mCurrentFrame.mvpMapPoints.begin(), mCurrentFrame.mvpMapPoints.end(), static_cast<MapPoint *>(NULL));
 
@@ -974,7 +865,12 @@ bool Tracking::TrackWithMotionModel()
         return false;
 
     // Optimize pose with all correspondences
+    //cv::Mat P = mCurrentFrame.mTcw.clone();
     Optimizer::PoseOptimization(&mCurrentFrame);
+    //cv::Mat M =  P - mCurrentFrame.mTcw;
+    //double norm_m1 = cv::norm(M);
+    //cout<<"M"<<M<<endl;
+    //cout<<"diff"<<norm_m1<<endl;
     //cout<<"bef mTcw"<<mCurrentFrame.mTcw<<endl;
     // Discard outliers
     for (size_t i = 0; i < mCurrentFrame.mvpMapPoints.size(); i++)
@@ -1444,7 +1340,7 @@ void Tracking::Reset()
     // Reset Local Mapping
     mpLocalMapper->RequestReset();
     // Reset Loop Closing
-    mpLoopClosing->RequestReset();
+    //mpLoopClosing->RequestReset();
     // Clear BoW Database
     mpKeyFrameDB->clear();
     // Clear Map (this erase MapPoints and KeyFrames)
